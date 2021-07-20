@@ -1,22 +1,4 @@
 var fs = require('fs');
-
-let method = 1;
-if (method === 0) {
-fs.open('txnlog.dat', 'r', function(status, fd) {
-    if (status) {
-        console.log(status.message);
-        return;
-    }
-    var buffer = Buffer.alloc(9);
-    fs.read(fd, buffer, 0, 9, 0, function(err, num) {
-        console.log(buffer.toString('utf8', 0, num));
-    });
-    // var buffer = Buffer.alloc(5);
-    // fs.read(fd, buffer, 0, 1, 0, function(err, num) {
-    //     console.log(buffer.toString('utf8', 0, num));
-    // });
-});
-} else {
 fs.open('txnlog.dat', 'r', function(err, fd) {
     if (err)
       throw err;
@@ -28,8 +10,7 @@ fs.open('txnlog.dat', 'r', function(err, fd) {
     let [version, numRecords, time, id, amount] = [0, 0, 0, BigInt(0), 1];
     let [numRecordsArray, timeArray, idArray, fractionArray] = [[], [], [], []];
     let sign, exponent, fraction;
-    while (true)
-    {
+    while (true) {
         var num = fs.readSync(fd, buffer, 0, 1, null);
         let n = buffer[0];
         if (num === 0) break;
@@ -74,15 +55,9 @@ fs.open('txnlog.dat', 'r', function(err, fd) {
             console.log("user ID = ", String(id));
         }
         if (count === 25) {
-            // console.log("exponent = ", exponent);
             amount *= (2 ** exponent) * (1 + fraction);
             console.log("amount = ", amount);
-            // amount = amountArray.reduce((amount, element) => amount * 256 + element);
-            // console.log("amountArray = ", amountArray);
-            // console.log("amount in dollars = ", amount);
         }
-    //   console.log(count, 'byte read', buffer[0], String.fromCharCode(buffer[0]));
         count++;
     }
 });
-}
