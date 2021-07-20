@@ -37,14 +37,38 @@ const amount = array => {
 
 fs.open('txnlog.dat', 'r', function(err, fd) {
     if (err) throw err;
-    console.log("magic string = ", read(4, fd).map(n => String.fromCharCode(n)).join(''));
-    console.log("version = ", read(1, fd)[0]);
+    const magicString = read(4, fd).map(n => String.fromCharCode(n)).join('');
+    if (magicString !== 'MPS7') return console.log("I don't know how to parse this type of file.");
+    const version = read(1, fd)[0];
     let numberOfRecords = read(4, fd).reduce((sum, n) => sum * 256 + n);
-    console.log("# of records = ", numberOfRecords);
-
+    // console.log("magic string = ", magicString, ", version = ", version, ", and # of records = ", numberOfRecords)
+    let [totalCreditAmount, totalDebitAmount, autopaysStarted, autopaysEnded, balanceForUser] = new Array(5).fill(0);
+    let userId = 2456938384156277127n;
     for (let i = 0; i < numberOfRecords; i++) {
         let row = parseArray(read(13, fd));
         if (['Debit', 'Credit'].includes(row.recordType)) row.amount = amount(read(8, fd));
-        console.log(i, row);
+        switch (row.recordType) {
+            case 'Debit':
+              totalDebitAmount += row.amount;
+              if (row.id === userId) balanceForUser -= row.amount;
+              break;
+            case 'Credit':
+              totalCreditAmount += row.amount;
+              if (row.id === userId) balanceForUser += row.amount;
+              break;
+            case 'StartAutopay':
+              autopaysStarted++;
+              break;
+            case 'EndAutopay':
+              autopaysEnded++;
+              break;
+            default:
+        }
+        // console.log(i, row);
     }
+    console.log("total credit amount=", totalCreditAmount.toFixed(2));
+    console.log("total debit amount=" , totalDebitAmount.toFixed(2));
+    console.log("autopays started="   , autopaysStarted);
+    console.log("autopays ended="     , autopaysEnded);
+    console.log("balance for user ", String(userId), "=", balanceForUser.toFixed(2));
 });
