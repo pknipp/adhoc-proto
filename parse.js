@@ -7,17 +7,15 @@ const read = (n, fd) => (new Array(n)).fill(null).reduce(array => {
 }, []);
 
 const parseArray = array => {
-    const types = ['Debit', 'Credit', 'StartAutopay', 'EndAutopay'];
-    let recordType = types[array[0]];
-    let timeStamp = array.reduce((sum, element, i) => {
-        return (i && i < 5) ? sum * 256 + element : sum;
-    });
+    let recordType = ['Debit', 'Credit', 'StartAutopay', 'EndAutopay'][array[0]];
+    let timeStamp = array.reduce((sum, element, i) => (i && i < 5) ? sum * 256 + element : sum);
     let id = array.reduce((sum, element, i) => {
         return (i > 4 && i < 13) ? sum * 256n + BigInt(element) : sum;
     }, 0n);
     return {recordType, timeStamp, id};
 }
 
+const exponentOffset = 2 ** 10 - 1;
 const amount = array => {
     let exponent = array.shift();
     let bit = exponent < 128 ? 0 : 1;
@@ -27,7 +25,7 @@ const amount = array => {
     let nextByte = array.shift();
     exponent += Math.floor(nextByte / 16);
     exponent *= sign;
-    exponent -= 1023;
+    exponent -= exponentOffset;
     let fraction = 1 + (nextByte % 16) / 16;
     array.forEach((byte, i) => {
         fraction += byte / 16 / 256 ** (i + 1)
@@ -47,14 +45,15 @@ fs.open('txnlog.dat', 'r', function(err, fd) {
     for (let i = 0; i < numberOfRecords; i++) {
         let row = parseArray(read(13, fd));
         if (['Debit', 'Credit'].includes(row.recordType)) row.amount = amount(read(8, fd));
+        const foundUser = (row.id === userId);
         switch (row.recordType) {
             case 'Debit':
               totalDebitAmount += row.amount;
-              if (row.id === userId) balanceForUser -= row.amount;
+              if (foundUser) balanceForUser -= row.amount;
               break;
             case 'Credit':
               totalCreditAmount += row.amount;
-              if (row.id === userId) balanceForUser += row.amount;
+              if (foundUser) balanceForUser += row.amount;
               break;
             case 'StartAutopay':
               autopaysStarted++;
@@ -64,7 +63,7 @@ fs.open('txnlog.dat', 'r', function(err, fd) {
               break;
             default:
         }
-        // console.log(i, row);
+        // console.log(i, row.id);
     }
     console.log("total credit amount=", totalCreditAmount.toFixed(2));
     console.log("total debit amount=" , totalDebitAmount.toFixed(2));
