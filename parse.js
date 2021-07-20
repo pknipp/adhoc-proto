@@ -25,8 +25,9 @@ fs.open('txnlog.dat', 'r', function(err, fd) {
     let magicString = '';
     let recordType;
     let types = ['Debit', 'Credit', 'StartAutopay', 'EndAutopay'];
-    let [version, numRecords, time, id, amount] = [0, 0, 0, BigInt(0), 0];
-    let [numRecordsArray, timeArray, idArray, amountArray] = [[], [], [], []];
+    let [version, numRecords, time, id, amount] = [0, 0, 0, BigInt(0), 1];
+    let [numRecordsArray, timeArray, idArray, fractionArray] = [[], [], [], []];
+    let sign, exponent, fraction;
     while (true)
     {
         var num = fs.readSync(fd, buffer, 0, 1, null);
@@ -44,8 +45,17 @@ fs.open('txnlog.dat', 'r', function(err, fd) {
             timeArray.push(n);
         } else if (count < 14 + 8) {
             idArray.push(n);
-        } else if (count < 22 + 8) {
-            amountArray.push(n);
+        } else if (count === 22) {
+            let bit = n < 128 ? 0 : 1;
+            sign = bit ? -1 : 1;
+            exponent = n - bit * 128;
+        } else if (count === 23) {
+            exponent = exponent * 16 + Math.floor(n / 16) - 1023;
+            fraction = ((n % 16) / 16);
+        } else if (count === 24) {
+            fraction += n / 256 / 16;
+        } else if (count === 25) {
+            fraction += n / 256 / 256 / 16;
         }
         if (count === 4 - 1) console.log("magic string = ", magicString);
         if (count === 5 - 1) console.log("version = ", version);
@@ -63,9 +73,13 @@ fs.open('txnlog.dat', 'r', function(err, fd) {
             // stringifying the bigint removes the trailing "n"
             console.log("user ID = ", String(id));
         }
-        if (count === 30 - 1) {
-            time = timeArray.reduce((time, element) => time * 256 + element);
-            console.log("Unix timestamp = ", time);
+        if (count === 25) {
+            // console.log("exponent = ", exponent);
+            amount *= (2 ** exponent) * (1 + fraction);
+            console.log("amount = ", amount);
+            // amount = amountArray.reduce((amount, element) => amount * 256 + element);
+            // console.log("amountArray = ", amountArray);
+            // console.log("amount in dollars = ", amount);
         }
     //   console.log(count, 'byte read', buffer[0], String.fromCharCode(buffer[0]));
         count++;
